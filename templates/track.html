@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Статус вашего авто — DetailPro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/track.css') }}">
+</head>
+<body class="track-page">
+    <div class="track-glow track-glow-green"></div>
+    <div class="track-glow track-glow-orange"></div>
+
+    <header class="track-header" style="position: relative;">
+        <a href="{{ url_for('track') }}" class="track-logo">
+            <span class="track-logo-icon"><i class="bi bi-droplet-half"></i></span>
+            <span>
+                <strong>DetailPro</strong>
+                <small>Детейлинг орталығы</small>
+            </span>
+        </a>
+        {% if current_user.is_authenticated %}
+            <a href="{{ url_for('dashboard') }}" class="track-staff-link">Панель сотрудников</a>
+        {% else %}
+            <a href="{{ url_for('login') }}" class="track-staff-link">Вход для сотрудников</a>
+        {% endif %}
+    </header>
+
+    <main class="track-main">
+        <section class="track-hero">
+            <h1>Где моё авто?</h1>
+            <p>Введите госномер и узнайте статус обслуживания в реальном времени</p>
+        </section>
+
+        <section class="track-search-card">
+            <form method="POST" action="{{ url_for('track') }}" class="track-form">
+                <label for="license_plate">Госномер автомобиля</label>
+                <div class="track-input-row">
+                    <input
+                        type="text"
+                        id="license_plate"
+                        name="license_plate"
+                        class="track-input"
+                        placeholder="Например: 040AAA01"
+                        value="{{ search_plate }}"
+                        required
+                        autofocus
+                    >
+                    <button type="submit" class="track-submit">
+                        <i class="bi bi-search"></i> Проверить
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        {% if search_plate and error_message %}
+        <section class="track-alert track-alert-error">
+            <i class="bi bi-info-circle"></i>
+            {{ error_message }}
+        </section>
+        {% endif %}
+
+        {% if order and car %}
+        <section class="track-result-card">
+            <div class="track-result-grid">
+                <div class="track-car-visual">
+                    <div class="car-photo-main" style="width: 100%; max-width: 400px; height: 220px; border-radius: 12px; overflow: hidden; margin-bottom: 15px; background: #1a1d24; border: 1px solid rgba(255,255,255,0.1);">
+                        <img src="{{ order.image_url if order.image_url and order.image_url.startswith('/') else url_for('static', filename=order.image_url) if order.image_url else url_for('static', filename='images/default_car.jpg') }}"
+                             style="width: 100%; height: 100%; object-fit: cover;"
+                             onerror="this.src='{{ url_for('static', filename='images/default_car.jpg') }}';">
+                    </div>
+                </div>
+                <div class="track-details-panel">
+                    <div class="track-result-header">
+                        <div class="kz-plate" style="display: inline-flex; align-items: center; background: white; border: 2px solid #000; border-radius: 6px; padding: 2px 8px; font-family: 'Arial Black', sans-serif; font-weight: bold; color: black; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-bottom: 12px;">
+                            <div class="kz-flag-box" style="display: flex; flex-direction: column; align-items: center; margin-right: 6px; border-right: 1px solid #ccc; padding-right: 6px;">
+                                <span style="color: #00afca; font-size: 10px; line-height: 1;">🇰🇿</span>
+                                <span style="font-size: 9px; color: black; font-weight: bold; line-height: 1;">KZ</span>
+                            </div>
+                            <div class="plate-number" style="font-size: 20px; letter-spacing: 1px; text-transform: uppercase;">
+                                {{ car.license_plate }}
+                            </div>
+                        </div>
+                        <div>
+                            <h2>{{ car.brand }} {{ car.model }}</h2>
+                            <p class="track-status-label">{{ progress.label }}</p>
+                        </div>
+                    </div>
+
+                    <div class="track-progress-wrap">
+                        <div class="track-progress-bar">
+                            <div class="track-progress-fill" style="width: {{ progress.percent }}%; background-color: {{ progress.color }};"></div>
+                        </div>
+                        <div class="track-steps">
+                            {% for step in status_steps %}
+                                <div class="track-step {% if step.step <= progress.current_step %}active{% endif %} {% if step.step == progress.current_step %}current{% endif %}">
+                                    <span class="track-step-dot"></span>
+                                    <span class="track-step-label">{{ step.label }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="track-info-grid">
+                        <div class="track-info-item">
+                            <span class="track-info-label">Услуга</span>
+                            <strong>{{ order.service.name }}</strong>
+                        </div>
+                        <div class="track-info-item">
+                            <span class="track-info-label">Мастер</span>
+                            <strong>{{ order.master.username if order.master else order.worker.username }}</strong>
+                        </div>
+                        <div class="track-info-item">
+                            <span class="track-info-label">Принято</span>
+                            <strong>{{ order.created_at|format_datetime }}</strong>
+                        </div>
+                        <div class="track-info-item">
+                            <span class="track-info-label">Срок работы</span>
+                            <strong>~{{ order.service.duration_mins|format_duration }}</strong>
+                        </div>
+                        <div class="track-info-item track-info-price">
+                            <span class="track-info-label">Итого</span>
+                            <strong class="track-price">
+                                {{ "{:,.0f}".format(order.total_price).replace(",", " ") }} ₸
+                                <span>/ {{ order.total_price|format_usd_short }}</span>
+                            </strong>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+        {% endif %}
+    </main>
+
+    <footer class="track-footer">
+        <span>DetailPro — премиальный уход за вашим автомобилем</span>
+    </footer>
+</body>
+</html>

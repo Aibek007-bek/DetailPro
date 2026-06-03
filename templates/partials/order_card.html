@@ -1,0 +1,63 @@
+<div
+    class="order-card status-{{ order.status|lower|replace(' ', '-') }}"
+    data-order-id="{{ order.id }}"
+    data-car-id="{{ order.car_id }}"
+    data-user-id="{{ order.user_id }}"
+    data-service-id="{{ order.service_id }}"
+    data-total-price="{{ order.total_price }}"
+    data-status="{{ order.status }}"
+>
+    <div class="plate-badge">{{ order.car.license_plate }}</div>
+
+    <p class="car-title">{{ order.car.brand }} {{ order.car.model }}</p>
+
+    <div class="service-block">
+        <span class="service-label">Услуга</span>
+        <p class="service-name">{{ order.service.name }}</p>
+    </div>
+
+    <div class="price-block">
+        <span class="price-combined">
+            <span class="price-kzt">{{ "{:,.0f}".format(order.total_price).replace(",", " ") }} ₸</span>
+            <span class="price-separator">/</span>
+            <span class="price-usd">{{ order.total_price|format_usd_short }}</span>
+        </span>
+    </div>
+
+    <div class="order-details">
+        <div class="detail-row">
+            <i class="bi bi-person-badge"></i>
+            <span>Мастер: <strong>{{ order.worker.username }}</strong></span>
+        </div>
+        <div class="detail-row">
+            <i class="bi bi-calendar-check"></i>
+            <span>Принято: <strong>{{ order.created_at|format_datetime }}</strong></span>
+        </div>
+        <div class="detail-row">
+            <i class="bi bi-clock-history"></i>
+            <span>Срок работы: <strong>~{{ order.service.duration_mins|format_duration }}</strong></span>
+        </div>
+    </div>
+
+    <div class="order-card-actions">
+        <button
+            type="button"
+            class="btn-status btn-back"
+            aria-label="Предыдущий статус"
+            {% if order.status == 'Pending' %}disabled{% else %}onclick="updateStatus('{{ order.id }}', '{% if order.status == 'In Progress' %}pending{% elif order.status == 'Ready' %}in_progress{% endif %}')"{% endif %}
+        >
+            <i class="bi bi-arrow-left"></i>
+        </button>
+
+        <span class="order-id-label">Заказ №{{ order.id }}</span>
+
+        <button
+            type="button"
+            class="btn-status btn-forward"
+            aria-label="Следующий статус"
+            {% if order.status == 'Ready' %}disabled{% else %}onclick="updateStatus('{{ order.id }}', '{% if order.status == 'Pending' %}in_progress{% elif order.status == 'In Progress' %}completed{% endif %}')"{% endif %}
+        >
+            <i class="bi bi-arrow-right"></i>
+        </button>
+    </div>
+</div>

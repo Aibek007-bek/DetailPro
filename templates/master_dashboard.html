@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}DetailPro — Панель мастера{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard-pro.css') }}">
+<style>
+.master-shell {
+    display: grid;
+    gap: 1.5rem;
+}
+.master-topbar {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.master-card {
+    background: #17171c;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 18px;
+    padding: 1rem 1.15rem;
+}
+.master-card h3 {
+    margin: 0 0 .5rem;
+    font-size: 1rem;
+    letter-spacing: .01em;
+}
+.master-card p {
+    margin: 0;
+    color: #9ca3af;
+    font-size: .85rem;
+}
+.master-orders {
+    display: grid;
+    gap: 1rem;
+}
+.master-order {
+    background: #1b1b22;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 18px;
+    padding: 1rem;
+}
+.master-order .order-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: .75rem;
+    align-items: center;
+}
+.master-order .order-meta {
+    display: grid;
+    gap: .6rem;
+    margin-top: .85rem;
+}
+.master-order .order-meta span {
+    font-size: .88rem;
+    color: #e5e7eb;
+}
+.master-order .order-footer {
+    display: grid;
+    gap: .75rem;
+    margin-top: 1rem;
+}
+.master-order .action-buttons {
+    display: grid;
+    gap: .75rem;
+}
+.master-order .status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: .4rem .8rem;
+    border-radius: 999px;
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+}
+.status-pending { background: rgba(250, 204, 21, .14); color: #fde68a; }
+.status-progress { background: rgba(59, 130, 246, .12); color: #93c5fd; }
+.status-ready { background: rgba(34, 197, 94, .12); color: #86efac; }
+.master-no-orders {
+    background: #1b1b22;
+    border: 1px dashed rgba(255,255,255,.12);
+    border-radius: 18px;
+    padding: 1.25rem;
+    text-align: center;
+    color: #9ca3af;
+}
+@media (max-width: 720px) {
+    .master-order .order-header { flex-direction: column; align-items: stretch; }
+    .master-order .order-footer { gap: .6rem; }
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="dashboard-pro">
+    <div class="dash-topbar">
+        <div>
+            <h2>Панель мастера</h2>
+            <p>Список закреплённых заказов</p>
+        </div>
+    </div>
+
+    <div class="master-shell">
+        <div class="master-topbar">
+            <div class="master-card">
+                <h3>В очереди</h3>
+                <p>{{ pending_queue }}</p>
+            </div>
+            <div class="master-card">
+                <h3>В работе</h3>
+                <p>{{ cars_in_progress }}</p>
+            </div>
+            <div class="master-card">
+                <h3>Готово</h3>
+                <p>{{ completed_orders }}</p>
+            </div>
+            <div class="master-card">
+                <h3>Выручка</h3>
+                <p>{{ "{:,.0f}".format(total_cash).replace(",", " ") }} ₸</p>
+            </div>
+        </div>
+
+        <div class="master-orders">
+            {% if orders %}
+                {% for order in orders %}
+                <div class="master-order">
+                    <div class="order-header">
+                        <div>
+                            <div class="kz-plate-wrapper">{{ order.car.license_plate|format_kz_plate }}</div>
+                            <p style="margin:.75rem 0 0; color:#9ca3af;">{{ order.car.brand }} {{ order.car.model }}</p>
+                        </div>
+                        <span class="status-pill {% if order.status == 'Pending' %}status-pending{% elif order.status == 'In Progress' %}status-progress{% else %}status-ready{% endif %}">
+                            {{ status_labels.get(order.status, order.status) }}
+                        </span>
+                    </div>
+                    <div class="order-meta">
+                        <span>Услуга: <strong>{{ order.service.name }}</strong></span>
+                        <span>Цена: <strong>{{ "{:,.0f}".format(order.total_price).replace(",", " ") }} ₸</strong></span>
+                        <span>Принят: <strong>{{ order.created_at|format_datetime }}</strong></span>
+                    </div>
+                    <div class="order-footer">
+                        <div class="action-buttons">
+                            {% if order.status == 'Pending' %}
+                            <button type="button" class="btn btn-outline-info btn-sm action-status" data-order-id="{{ order.id }}" data-status="in_progress">Жұмысқа кірісу</button>
+                            {% elif order.status == 'In Progress' %}
+                            <button type="button" class="btn btn-outline-success btn-sm action-status" data-order-id="{{ order.id }}" data-status="completed">Дайын</button>
+                            {% else %}
+                            <button type="button" class="btn btn-secondary btn-sm" disabled>Жеткізілген</button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="master-no-orders">У вас пока нет закреплённых заказов.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function updateMasterOrderStatus(orderId, status) {
+    try {
+        const res = await fetch(`/api/v1/orders/${orderId}/status`, {
+            method: 'PATCH',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ status }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            throw new Error(data?.error?.message || 'Ошибка при обновлении статуса');
+        }
+        window.location.reload();
+    } catch (err) {
+        alert(err.message || 'Ошибка при обновлении статуса');
+    }
+}
+
+function bindMasterStatusButtons() {
+    document.body.querySelectorAll('.action-status').forEach((button) => {
+        if (button.dataset.bound) return;
+        button.dataset.bound = 'true';
+        button.addEventListener('click', async () => {
+            const orderId = button.dataset.orderId;
+            const status = button.dataset.status;
+            if (!orderId || !status) return;
+            await updateMasterOrderStatus(orderId, status);
+        });
+    });
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindMasterStatusButtons);
+} else {
+    bindMasterStatusButtons();
+}
+</script>
+{% endblock %}

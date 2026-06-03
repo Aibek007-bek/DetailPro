@@ -1,0 +1,68 @@
+<div
+    class="oc status-{{ order.status|lower|replace(' ', '-') }}"
+    data-order-id="{{ order.id }}"
+    data-status="{{ order.status|order_status_key }}"
+    data-brand="{{ order.car.brand }} {{ order.car.model }}"
+    data-plate="{{ order.car.license_plate }}"
+    data-model="{{ order.car.model }}"
+    data-master-id="{{ order.user_id }}"
+    data-worker="{{ order.worker.username }}"
+    data-service="{{ order.service.name }}"
+    data-price="{{ order.total_price }}"
+    {% if order.status == 'In Progress' %}
+    data-deadline="{{ order|order_deadline }}"
+    {% endif %}
+>
+    <div class="plate-lg">{{ order.car.license_plate|format_kz_plate }}</div>
+    <p class="car-name">{{ order.car.brand }} {{ order.car.model }}</p>
+    <p class="svc"><span data-i18n="service">Услуга</span>: {{ order.service.name }}</p>
+    <p class="price-line">
+        {{ "{:,.0f}".format(order.total_price).replace(",", " ") }} ₸
+        <span>/ {{ order.total_price|format_usd_short }}</span>
+    </p>
+    <div class="meta">
+        <span><span data-i18n="master">Мастер</span>: <strong>{{ order.worker.username }}</strong></span>
+        <span><span data-i18n="received">Принято</span>: {{ order.created_at|format_datetime }}</span>
+        <span><span data-i18n="duration">Срок</span>: ~{{ order.service.duration_mins|format_duration }}</span>
+    </div>
+    {% if order.status == 'In Progress' %}
+    <div class="countdown"><span data-i18n="countdown">Осталось</span>: <span class="countdown-val">--:--:--</span></div>
+    {% endif %}
+    <div class="checklist">
+        <label><input type="checkbox" class="chk-item"> <span data-i18n="checkWash">Мойка</span></label>
+        <label><input type="checkbox" class="chk-item"> <span data-i18n="checkMain">Основная работа</span></label>
+        <label><input type="checkbox" class="chk-item"> <span data-i18n="checkAccept">Приемка</span></label>
+        <div class="prog-wrap"><div class="prog-fill"></div></div>
+    </div>
+    <div class="move-buttons" style="margin:.5rem 0; display:flex; gap:.5rem; flex-wrap:wrap;">
+        {% if order.status == 'Pending' %}
+        <button class="move-btn btn btn-sm btn-outline-info" data-i18n="startWork" onclick="toggleMasterPicker({{ order.id }})">Жұмысқа кірісу →</button>
+        <div id="master-picker-{{ order.id }}" class="master-picker" style="display:none; flex-direction:column; gap:.75rem; width:100%; margin-top:10px;">
+            {% if masters %}
+            <select id="master-select-{{ order.id }}" class="form-control bg-dark text-white border-secondary" style="border-radius:8px; padding:10px;">
+                <option value="">Выберите мастера</option>
+                {% for master in masters %}
+                <option value="{{ master.id }}">{{ master.username }}</option>
+                {% endfor %}
+            </select>
+            <button type="button" class="btn btn-sm btn-success" onclick="startOrder({{ order.id }})">Назначить мастера</button>
+            {% else %}
+            <div class="empty-kanban">Нет доступных мастеров</div>
+            {% endif %}
+        </div>
+        {% elif order.status == 'In Progress' %}
+        <button class="btn-complete" onclick="completeOrder({{ order.id }})">Дайын</button>
+        {% else %}
+        <button class="move-btn btn btn-sm btn-secondary archive-btn" data-i18n="archive" onclick="archiveOrder('{{ order.id }}')">Архивке жіберу 📥</button>
+        {% endif %}
+    </div>
+    <div class="photo-btns">
+        <button type="button" class="photo-btn" data-i18n="before" data-photo-type="before">📸 До</button>
+        <input type="file" accept="image/*" capture="environment" class="photo-input" data-photo-type="before" style="display:none;">
+        <button type="button" class="photo-btn" data-i18n="after" data-photo-type="after">✨ После</button>
+        <input type="file" accept="image/*" capture="environment" class="photo-input" data-photo-type="after" style="display:none;">
+    </div>
+    {% if order.status == 'Ready' %}
+    <button type="button" class="btn-print" data-i18n="printReceipt">Печать чека</button>
+    {% endif %}
+</div>

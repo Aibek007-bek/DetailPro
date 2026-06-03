@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+detailing_crm.db
+*.db-journal
+.env
+.DS_Store

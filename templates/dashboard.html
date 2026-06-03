@@ -1,0 +1,497 @@
+{% extends "base.html" %}
+{% block title %}DetailPro — Панель{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard-pro.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+{% endblock %}
+{% block content %}
+<div class="dashboard-pro">
+    <div class="dashboard-main-layout">
+        <div class="dashboard-side-nav">
+            <button type="button" class="side-nav-button active" data-tab="overview"><i class="bi bi-graph-up"></i><span>Обзор</span></button>
+            <button type="button" class="side-nav-button" data-tab="orders"><i class="bi bi-list-check"></i><span>Заказы</span></button>
+            <button type="button" class="side-nav-button" data-tab="team"><i class="bi bi-people"></i><span>Команда</span></button>
+            <a href="{{ url_for('track') }}" class="side-nav-button" style="text-decoration:none;"><i class="bi bi-geo-alt"></i><span>Трекинг</span></a>
+        </div>
+
+        <div class="dashboard-main-panel">
+            <div class="dash-topbar">
+                <div>
+                    <h2 data-i18n="panelTitle">{% if is_admin %}Панель управления{% else %}Мои заказы{% endif %}</h2>
+                    <p data-i18n="panelSub">Детейлинг-центр</p>
+                </div>
+                <div class="lang-switch">
+                    <button type="button" class="lang-btn" data-lang="kz">KZ</button>
+                    <button type="button" class="lang-btn active" data-lang="ru">RU</button>
+                </div>
+            </div>
+
+            <div id="overview" class="dashboard-tab active">
+                <div class="stats-row">
+                    {% if is_admin %}
+                    <div class="stat-box revenue">
+                        <div class="lbl" data-i18n="revenue">Выручка</div>
+                        <div class="val" id="stat-revenue">{{ "{:,.0f}".format(total_cash).replace(",", " ") }} ₸</div>
+                    </div>
+                    {% else %}
+                    <div class="stat-box revenue">
+                        <div class="lbl" data-i18n="totalTasks">Всего задач</div>
+                        <div class="val">{{ my_total_tasks }}</div>
+                    </div>
+                    {% endif %}
+                    <div class="stat-box">
+                        <div class="lbl" data-i18n="inQueue">В очереди</div>
+                        <div class="val" id="stat-pending">{{ pending_queue }}</div>
+                    </div>
+                    <div class="stat-box work">
+                        <div class="lbl" data-i18n="inWork">В работе</div>
+                        <div class="val" id="stat-progress">{{ cars_in_progress }}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="lbl" data-i18n="done">Готово</div>
+                        <div class="val" id="stat-ready">{{ completed_orders }}</div>
+                    </div>
+                </div>
+
+                {% if is_admin %}
+                <div class="charts-row">
+                    <div class="chart-card">
+                        <h4 data-i18n="revenueChart">Динамика дохода</h4>
+                        <canvas id="revenueChart" height="120"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h4 data-i18n="brandChart">Популярность марок</h4>
+                        <canvas id="brandChart" height="120"></canvas>
+                    </div>
+                </div>
+                <div class="leaderboard-card">
+                    <h4 data-i18n="leaderboard">Рейтинг мастеров</h4>
+                    <ul class="leaderboard-list">
+                        {% for m in master_leaderboard %}
+                        <li><span>{{ m.username }}</span><span class="score">{{ m.completed_count }}</span></li>
+                        {% else %}
+                        <li><span>—</span><span class="score">0</span></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                <div class="toolbar">
+                    <div class="search-wrap">
+                        <i class="bi bi-search"></i>
+                        <input type="search" id="live-search" data-i18n-placeholder="liveSearch" placeholder="Поиск (марка / госномер)">
+                    </div>
+                    <select id="master-filter" class="form-select" style="max-width:200px;padding-left:1rem;">
+                        <option value="" data-i18n="allMasters">Все мастера</option>
+                        {% for w in workers %}
+                        <option value="{{ w.id }}">{{ w.username }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" class="btn-add-car" data-bs-toggle="modal" data-bs-target="#addCarModal" data-i18n="addCar">Добавить авто</button>
+                </div>
+
+                <div class="kanban-wrap" id="kanban-board">
+                    <h3 data-i18n="kanbanTitle">Доска заказов</h3>
+
+                    <div class="mobile-kanban-tabs">
+                        <button type="button" data-status="Pending" class="active"></button>
+                        <button type="button" data-status="In Progress"></button>
+                        <button type="button" data-status="Ready"></button>
+                    </div>
+
+                    <div class="kanban-board-pro kanban-desktop">
+                        {% for status, label_key, orders_list in [
+                            ('Pending', 'statusPending', orders_pending),
+                            ('In Progress', 'statusProgress', orders_in_progress),
+                            ('Ready', 'statusReady', orders_ready)
+                        ] %}
+                        <div class="kanban-col" data-status="{{ status }}">
+                            <div class="col-head">
+                                <h4 data-i18n="{{ label_key }}">{{ status }}</h4>
+                                <span class="col-count">{{ orders_list|length }}</span>
+                            </div>
+                            <div class="kanban-list" data-status="{{ status }}">
+                                {% if orders_list %}
+                                    {% for order in orders_list %}
+                                    {% include "partials/order_card_pro.html" %}
+                                    {% endfor %}
+                                {% else %}
+                                <div class="empty-kanban" data-i18n="emptyCol">Пусто</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    {% for status, label_key, orders_list in [
+                        ('Pending', 'statusPending', orders_pending),
+                        ('In Progress', 'statusProgress', orders_in_progress),
+                        ('Ready', 'statusReady', orders_ready)
+                    ] %}
+                    <div class="mobile-kanban-panel {% if status == 'Pending' %}active{% endif %} d-md-none" data-status="{{ status }}">
+                        <div class="kanban-list" data-status="{{ status }}">
+                            {% if orders_list %}
+                                {% for order in orders_list %}
+                                {% include "partials/order_card_pro.html" %}
+                                {% endfor %}
+                            {% else %}
+                            <div class="empty-kanban" data-i18n="emptyCol">Пусто</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div id="orders" class="dashboard-tab">
+                <h3 style="margin-bottom:1rem;">Активные заказы</h3>
+                <div class="kanban-board-pro" style="grid-template-columns:1fr;">
+                    <div class="kanban-col" style="border-top:none;">
+                        <table style="width:100%;border-collapse:collapse;font-size:.9rem;">
+                            <thead>
+                                <tr style="border-bottom:1px solid rgba(255,255,255,.08);">
+                                    <th style="padding:.75rem;text-align:left;color:#9ca3af;font-weight:600;">Госномер</th>
+                                    <th style="padding:.75rem;text-align:left;color:#9ca3af;font-weight:600;">Марка</th>
+                                    <th style="padding:.75rem;text-align:left;color:#9ca3af;font-weight:600;">Услуга</th>
+                                    <th style="padding:.75rem;text-align:left;color:#9ca3af;font-weight:600;">Цена</th>
+                                    <th style="padding:.75rem;text-align:left;color:#9ca3af;font-weight:600;">Мастер</th>
+                                    <th style="padding:.75rem;text-align:left;color:#9ca3af;font-weight:600;">Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in orders if order.status != 'Ready' %}
+                                <tr style="border-bottom:1px solid rgba(255,255,255,.08);">
+                                    <td style="padding:.75rem;">{{ order.car.license_plate }}</td>
+                                    <td style="padding:.75rem;">{{ order.car.brand }}</td>
+                                    <td style="padding:.75rem;">{{ order.service.name }}</td>
+                                    <td style="padding:.75rem;">{{ "{:,.0f}".format(order.total_price).replace(",", " ") }} ₸</td>
+                                    <td style="padding:.75rem;">{{ order.master.username if order.master else '—' }}</td>
+                                    <td style="padding:.75rem;">
+                                        {% if order.status == 'Pending' %}
+                                        <span style="color:#4dabf7;">В ожидании</span>
+                                        {% elif order.status == 'In Progress' %}
+                                        <span style="color:#ff8c32;">В работе</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <h3 style="margin-top:2rem;margin-bottom:1rem;">Архив заказов</h3>
+                <div class="kanban-board-pro" style="grid-template-columns:1fr;">
+                    <div class="kanban-col" style="border-top:none;">
+                        {% set completed = orders|selectattr('status', 'equalto', 'Ready')|list %}
+                        {% if completed %}
+                        <table style="width:100%;border-collapse:collapse;font-size:.9rem;">
+                            <thead>
+                                <tr style="border-bottom:1px solid rgba(255,255,255,.08);">
+                                    <th style="padding:.75rem;text-align:left;color:#9ca3af;font-weight:600;">Госномер</th>
+                                    <th style="padding:.75rem;text-align:left;color:#9ca3af;font-weight:600;">Марка</th>
+                                    <th style="padding:.75rem;text-align:left;color:#9ca3af;font-weight:600;">Услуга</th>
+                                    <th style="padding:.75rem;text-align:left;color:#9ca3af;font-weight:600;">Цена</th>
+                                    <th style="padding:.75rem;text-align:left;color:#9ca3af;font-weight:600;">Мастер</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in completed %}
+                                <tr style="border-bottom:1px solid rgba(255,255,255,.08);">
+                                    <td style="padding:.75rem;">{{ order.car.license_plate }}</td>
+                                    <td style="padding:.75rem;">{{ order.car.brand }}</td>
+                                    <td style="padding:.75rem;">{{ order.service.name }}</td>
+                                    <td style="padding:.75rem;">{{ "{:,.0f}".format(order.total_price).replace(",", " ") }} ₸</td>
+                                    <td style="padding:.75rem;">{{ order.master.username if order.master else '—' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <div style="padding:1rem;color:#9ca3af;text-align:center;">Архив пуст</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div id="team" class="dashboard-tab">
+                <div class="team-panel">
+                    <div class="team-header">
+                        <div>
+                            <h3>Команда</h3>
+                            <p>Управление мастерами и сотрудниками</p>
+                        </div>
+                    </div>
+                    <div class="team-grid">
+                        <div class="team-card">
+                            <div class="team-card-header">
+                                <h4>Добавить мастера</h4>
+                            </div>
+                            <form id="form-add-master" class="team-form-grid">
+                                <div class="team-input-group">
+                                    <span>Имя</span>
+                                    <input type="text" id="master-username" class="team-input" placeholder="Введите имя" required>
+                                </div>
+                                <div class="team-input-group">
+                                    <span>Пароль</span>
+                                    <input type="password" id="master-password" class="team-input" placeholder="Введите пароль" required>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn-add-car btn-add-master">Добавить</button>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="team-card">
+                            <div class="team-card-header">
+                                <h4>Текущие мастера</h4>
+                            </div>
+                            <div class="team-card-list">
+                                {% if workers %}
+                                <div class="team-list">
+                                    {% for worker in workers %}
+                                    <div class="team-list-item" data-worker-id="{{ worker.id }}">
+                                        <div class="team-person">
+                                            <div class="team-avatar"><i class="bi bi-person"></i></div>
+                                            <div>
+                                                <div class="team-name">{{ worker.username }}</div>
+                                                <div class="team-meta">{{ worker.role|upper }}</div>
+                                            </div>
+                                        </div>
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="deleteMaster({{ worker.id }})"><i class="bi bi-trash"></i></button>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <div class="team-list-empty">Нет мастеров</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<nav class="mobile-bottom-nav d-md-none">
+    <a href="{{ url_for('dashboard') }}" class="active"><i class="bi bi-grid-1x2"></i><span data-i18n="overview">Обзор</span></a>
+    <a href="#kanban-board"><i class="bi bi-kanban"></i><span data-i18n="orders">Заказы</span></a>
+    <a href="{{ url_for('track') }}"><i class="bi bi-search"></i><span data-i18n="track">Трекинг</span></a>
+    <a href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right"></i><span data-i18n="logout">Выйти</span></a>
+</nav>
+
+<div class="modal fade" id="addCarModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background:#17171c;color:#fff;border:1px solid rgba(255,255,255,.1);">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" data-i18n="modalTitle">Добавить автомобиль</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="quick-order-form">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" data-i18n="brand">Марка</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" name="brand" required placeholder="Toyota">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" data-i18n="model">Модель</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" name="model" required placeholder="Camry 40">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" data-i18n="plate">Госномер</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary font-monospace" name="license_plate" required placeholder="040AAA01">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" data-i18n="phone">Телефон</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" name="owner_phone" required placeholder="+77011234567">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" data-i18n="serviceSelect">Услуга</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="service_id" required>
+                            {% for s in services %}
+                            <option value="{{ s.id }}">{{ s.name }} — {{ "{:,.0f}".format(s.price).replace(",", " ") }} ₸</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" data-i18n="masterSelect">Мастер</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="user_id" required>
+                            {% for w in workers %}
+                            <option value="{{ w.id }}" {% if not is_admin and w.id == current_user.id %}selected{% endif %}>{{ w.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="cancel">Отмена</button>
+                    <button type="submit" class="btn btn-success" data-i18n="save">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="receipt-print-area"></div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.querySelectorAll('.side-nav-button').forEach(btn => {
+  btn.addEventListener('click', e => {
+    if (btn.href && btn.href !== '#') return;
+    e.preventDefault();
+    const tab = btn.getAttribute('data-tab');
+    document.querySelectorAll('.dashboard-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(tab).classList.add('active');
+    document.querySelectorAll('.side-nav-button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+document.getElementById('live-search').addEventListener('keyup', e => {
+  const query = e.target.value.toLowerCase();
+  document.querySelectorAll('.oc').forEach(card => {
+    const plate = (card.getAttribute('data-plate') || '').toLowerCase();
+    const brand = (card.getAttribute('data-brand') || '').toLowerCase();
+    const visible = plate.includes(query) || brand.includes(query) || !query;
+    card.classList.toggle('hidden-by-filter', !visible);
+  });
+});
+
+document.getElementById('form-add-master').addEventListener('submit', async e => {
+  e.preventDefault();
+  const username = document.getElementById('master-username').value;
+  const password = document.getElementById('master-password').value;
+  try {
+    const res = await fetch('/api/v1/masters/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    if (res.ok) {
+      location.reload();
+    } else {
+      alert('Ошибка: ' + (await res.text()));
+    }
+  } catch (err) {
+    alert('Ошибка: ' + err.message);
+  }
+});
+
+async function deleteMaster(id) {
+  if (!confirm('Удалить мастера?')) return;
+  try {
+    const res = await fetch(`/api/v1/masters/${id}`, { method: 'DELETE' });
+    if (res.ok) location.reload();
+  } catch (err) {
+    alert('Ошибка: ' + err.message);
+  }
+}
+
+async function completeOrder(id) {
+  try {
+    const res = await fetch(`/api/v1/orders/${id}/complete`, { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      document.getElementById('receipt-print-area').innerHTML = `
+        <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#17171c;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:2rem;z-index:9999;max-width:400px;width:90%;color:#fff;font-family:monospace;">
+          <h4 style="margin:0 0 1rem;text-align:center;font-family:monospace;">ЧЕК / ЕСЕП</h4>
+          <div style="border-bottom:1px dashed rgba(255,255,255,.3);padding-bottom:1rem;margin-bottom:1rem;font-size:.9rem;">
+            <div style="display:flex;justify-content:space-between;margin:.3rem 0;">
+              <span>Госномер:</span>
+              <strong>${data.plate}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin:.3rem 0;">
+              <span>Марка:</span>
+              <strong>${data.brand}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin:.3rem 0;">
+              <span>Услуга:</span>
+              <strong>${data.service}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin:.3rem 0;">
+              <span>Мастер:</span>
+              <strong>${data.master}</strong>
+            </div>
+          </div>
+          <div style="text-align:right;font-weight:700;font-size:1.2rem;">Итого: ${data.price} ₸</div>
+          <button onclick="window.print();this.parentElement.remove();" style="width:100%;margin-top:1rem;background:#00ff88;color:#0f0f12;border:none;border-radius:8px;padding:.75rem;font-weight:700;cursor:pointer;">Печать</button>
+        </div>
+      `;
+      setTimeout(() => location.reload(), 3000);
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+const translations = {
+    kz: {
+        overview: "Обзор",
+        orders: "Тапсырыстар",
+        team: "Команда",
+        tracking: "Клиенттерге арналған трекинг",
+        archive_title: "Архив заказов (Аяқталған жұмыстар)",
+        team_title: "Басқару құрамы / Команда",
+        add_master: "Шеберді қосу",
+        archive_empty: "Архив бос",
+        save: "Сақтау",
+        delete: "Өшіру"
+    },
+    ru: {
+        overview: "Обзор",
+        orders: "Заказы",
+        team: "Команда",
+        tracking: "Трекинг для клиентов",
+        archive_title: "Архив заказов",
+        team_title: "Управление / Команда",
+        add_master: "Добавить мастера",
+        archive_empty: "Архив пуст",
+        save: "Сохранить",
+        delete: "Удалить"
+    }
+};
+
+function changeLanguage(lang) {
+    localStorage.setItem('selected_lang', lang);
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (translations[lang] && translations[lang][key]) {
+            if (el.tagName === 'INPUT') el.placeholder = translations[lang][key];
+            else el.textContent = translations[lang][key];
+        }
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (translations[lang] && translations[lang][key]) {
+            el.placeholder = translations[lang][key];
+        }
+    });
+}
+
+document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        changeLanguage(this.getAttribute('data-lang'));
+    });
+});
+
+const savedLang = localStorage.getItem('selected_lang') || 'ru';
+changeLanguage(savedLang);
+document.querySelector(`.lang-btn[data-lang="${savedLang}"]`)?.classList.add('active');
+
+document.getElementById('form-add-car')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    fetch('/orders/create', { method: 'POST', body: new FormData(this) })
+    .then(() => window.location.reload());
+});
+
+document.getElementById('form-add-master')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    fetch('/api/v1/masters/create', { method: 'POST', body: new FormData(this) })
+    .then(() => window.location.reload());
+});
+</script>
+{% endblock %}
