@@ -923,24 +923,71 @@ def register_routes(app: Flask) -> None:
     def create_master():
         if not user_is_admin():
             raise ApiError('Доступ запрещён.', status_code=403)
-        if request.is_json:
-            data = get_json_body()
-        else:
-            data = request.form.to_dict(flat=True)
-        require_fields(data, ['username', 'password'])
-        username = validate_non_empty_string(data['username'], 'username')
-        password = validate_non_empty_string(data['password'], 'password')
-        existing_user = User.query.filter_by(username=username).first()
-        if existing_user is not None:
-            raise ApiError('Пользователь с таким именем уже существует.', status_code=400)
-        new_user = User(
-            username=username,
-            password_hash=generate_password_hash(password, method='pbkdf2:sha256'),
-            role='master',
+
+        app.logger.debug(
+            "create_master request: content_type=%s, is_json=%s, raw_body=%s",
+            request.content_type,
+            request.is_json,
+            request.get_data(as_text=True),
         )
-        db.session.add(new_user)
-        db.session.commit()
-        return jsonify({'success': True, 'data': {'id': new_user.id, 'username': new_user.username}}), 201
+
+        data = None
+        try:
+            if request.is_json:
+                data = get_json_body()
+            else:
+                data = request.form.to_dict(flat=True)
+
+            app.logger.debug("create_master parsed data: %s", data)
+
+            require_fields(data, ['username', 'password'])
+            username = validate_non_empty_string(data['username'], 'username')
+            password = validate_non_empty_string(data['password'], 'password')
+            existing_user = User.query.filter_by(username=username).first()
+            if existing_user is not None:
+                raise ApiError(
+                    'Пользователь с таким именем уже существует.',
+                    status_code=400,
+                    errors=[{'field': 'username', 'message': 'Такой логин уже занят'}],
+                )
+
+            new_user = User(
+                username=username,
+                password_hash=generate_password_hash(password, method='pbkdf2:sha256'),
+                role='master',
+            )
+            db.session.add(new_user)
+            db.session.commit()
+
+            app.logger.info(
+                "create_master success: user_id=%s username=%s",
+                new_user.id,
+                new_user.username,
+            )
+            return jsonify({'success': True, 'data': {'id': new_user.id, 'username': new_user.username}}), 201
+
+        except ApiError as error:
+            app.logger.error(
+                "create_master ApiError: %s status=%s errors=%s request_data=%s",
+                error.message,
+                error.status_code,
+                error.errors,
+                data,
+            )
+            raise
+        except IntegrityError as exc:
+            db.session.rollback()
+            app.logger.error(
+                "create_master IntegrityError: %s request_data=%s\n%s",
+                exc,
+                data,
+                traceback.format_exc(),
+            )
+            raise ApiError(
+                'Пользователь с таким именем уже существует.',
+                status_code=400,
+                errors=[{'field': 'username', 'message': 'Такой логин уже занят'}],
+            )
 
     @app.route('/api/v1/orders/<int:order_id>/start', methods=['POST'])
     @login_required
